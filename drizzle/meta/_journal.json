@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788785580464,
+      "tag": "0000_initial_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1792679926611,
+      "tag": "0001_rainy_vulcan",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1792680529050,
+      "tag": "0002_phase1_intelligence_expansion",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1792681072043,
+      "tag": "0003_phase1_evidence_and_ops_metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1792681642350,
+      "tag": "0004_allow_document_revisions",
+      "breakpoints": true
+    }
+  ]
+}

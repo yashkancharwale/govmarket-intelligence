@@ -1,0 +1,19 @@
+import { ArrowRight, GitBranch, Info, Link2, ShieldCheck } from "lucide-react";
+import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { EmptyState, ErrorState, LoadingState, PageHeading, Panel, SyntheticFlag, VerificationPill } from "@/components/ResearchUI";
+
+interface GraphData { nodes:{id:number|string;label:string;type?:string;isSynthetic?:boolean;href?:string}[]; edges:{id?:number|string;source?:number|string;target?:number|string;sourceName?:string;targetName?:string;from?:number|string;to?:number|string;relationshipType?:string;type?:string;evidence?:string;verificationStatus?:string;isSynthetic?:boolean}[] }
+export default function Relationships() {
+  const query = trpc.intelligence.relationships.graph.useQuery();
+  const graph = query.data as unknown as GraphData | undefined;
+  const nodes = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+  const nodeName = (id?: number|string) => nodes.find(n => String(n.id) === String(id))?.label || "Entity unavailable";
+  return <div className="page-stack"><PageHeading eyebrow="ANALYSIS / ENTITY CONNECTIONS" title="Relationship explorer" description="Explore typed connections only where a supporting source is attached." actions={<SyntheticFlag>DEMO GRAPH</SyntheticFlag>} />
+    <div className="notice notice-neutral"><Info size={15} /><span>Event attendance is not a personal or financial relationship. Every edge shown here must retain evidence and a verification state.</span></div>
+    <section className="overview-grid"><Panel title="Relationship map" eyebrow="STORED GRAPH" className="graph-panel"><div className="graph-legend"><span><i className="legend-dot teal" />Public official</span><span><i className="legend-dot blue" />Event / scheme</span><span><i className="legend-dot amber" />Organization</span></div>{query.isLoading ? <LoadingState /> : query.error ? <ErrorState message={query.error.message} onRetry={() => query.refetch()} /> : edges.length ? <div className="graph-flow">{edges.slice(0, 24).map((edge,index) => { const from = edge.sourceName || nodeName(edge.from ?? edge.source); const to = edge.targetName || nodeName(edge.to ?? edge.target); return <div className="graph-edge-card" key={edge.id ?? index}><div className="graph-node"><span className="node-mark node-mark-left">{from.slice(0,1)}</span><strong>{from}</strong><small>DOCUMENTED ENTITY</small></div><div className="graph-connector"><span>{edge.relationshipType || edge.type || "related to"}</span><i /><ArrowRight size={15} /></div><div className="graph-node"><span className="node-mark node-mark-right">{to.slice(0,1)}</span><strong>{to}</strong><small>SUPPORTED LINK</small></div><div className="graph-edge-evidence"><ShieldCheck size={13} /><span>{edge.evidence || "Evidence reference unavailable"}</span><VerificationPill status={edge.verificationStatus} synthetic={edge.isSynthetic} /></div></div>; })}</div> : <EmptyState title="No evidence-backed edges" message="Relationship edges appear only when they have a stored type and supporting evidence." />}</Panel>
+      <Panel title="Relationship types" eyebrow="PROVENANCE RULES"><div className="relationship-type-list">{["Minister → Event", "Event → Organization", "Organization → Person role", "Company → Listed security", "Department → Scheme", "Agency → Contract", "Company → Subsidiary", "Event → Supporting source"].map((label,index) => <div key={label}><span className="type-index">0{index+1}</span><span>{label}</span><Link2 size={13} /></div>)}</div><div className="graph-disclaimer"><ShieldCheck size={15} /><p>Every edge needs relationship type and supporting evidence. A model-generated answer is not proof.</p></div></Panel></section>
+    <div className="footnote-line"><span>{nodes.length} nodes</span><span className="kicker-divider" /><span>{edges.length} typed edges</span><span className="kicker-divider" /><span>Only source-backed links are displayed</span></div>
+  </div>;
+}

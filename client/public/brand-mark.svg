@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="GovMarket evidence-link mark">
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#0e171a"/>
+  <rect x="5" y="5" width="118" height="118" rx="27" fill="none" stroke="#31554e" stroke-width="2"/>
+  <path d="M37 84 62 59l16 16 24-27" fill="none" stroke="#63d7c2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="37" cy="84" r="8" fill="#bceee4" stroke="#0e171a" stroke-width="4"/>
+  <circle cx="62" cy="59" r="8" fill="#63d7c2" stroke="#0e171a" stroke-width="4"/>
+  <circle cx="78" cy="75" r="8" fill="#87b2ff" stroke="#0e171a" stroke-width="4"/>
+  <circle cx="102" cy="48" r="8" fill="#e7bd78" stroke="#0e171a" stroke-width="4"/>
+</svg>
