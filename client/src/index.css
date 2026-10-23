@@ -615,3 +615,30 @@ button { color: inherit; }
 }
 
 .route-loading { display: flex; align-items: center; min-height: 180px; color: #90a3a2; font-size: 10px; }
+
+
+/* PIB RSS operations and source-document review */
+.pib-panel { min-width: 0; }
+.pib-feed-link { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 10px 0 14px; color: #94cfc1; font-size: 9px; overflow-wrap: anywhere; }
+.pib-feed-link > span:last-child { color: #839493; }
+.pib-state-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #202d31; color: #829295; font-size: 9px; }
+.pib-state-row strong { color: #c5d1cd; font-size: 9px; font-weight: 600; text-align: right; }
+.pib-state-row .pib-enabled { color: #8ed0b7; }
+.pib-warning { margin: 12px 0; align-items: flex-start; }
+.pib-warning > span { line-height: 1.55; }
+.pib-confirm { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; color: #aab8b5; font-size: 9px; line-height: 1.5; cursor: pointer; }
+.pib-confirm input { flex: none; margin: 1px 0 0; accent-color: #76c5b2; }
+.pib-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.pib-actions button:disabled { opacity: .42; cursor: not-allowed; }
+.pib-footnote { display: block; margin-top: 9px; color: #748588; font-size: 8px; line-height: 1.5; overflow-wrap: anywhere; }
+.pib-footnote code { color: #a7c9bd; }
+.evidence-metadata { color: #8fa19e; font-size: 8px; line-height: 1.5; overflow-wrap: anywhere; }
+.evidence-detail-text { margin-top: 3px; color: #aebbb7; font-size: 9px; line-height: 1.55; }
+.evidence-detail-text summary { color: #99cdbf; cursor: pointer; }
+.evidence-detail-text p { margin: 6px 0 0; padding: 8px; border-left: 2px solid #35564f; background: #10191c; color: #b8c3be; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .pib-actions { display: grid; grid-template-columns: 1fr; }
+  .pib-actions button { width: 100%; }
+  .pib-state-row { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .pib-state-row strong { text-align: left; }
+}

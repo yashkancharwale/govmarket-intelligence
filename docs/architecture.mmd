@@ -1,12 +1,23 @@
 flowchart LR
-  U[Researcher browser] --> UI[React + TypeScript + Vite<br/>Responsive research workspace]
+  U[Researcher browser] --> UI[React + TypeScript + Vite<br/>Responsive evidence-first workspace]
   UI -->|tRPC / validated inputs| API[Express + tRPC API<br/>OAuth session · role checks]
   API --> SVC[Domain services<br/>Search · entity resolution<br/>CSV import · event studies]
   SVC --> DB[(Managed MySQL-compatible DB<br/>Drizzle models + migrations)]
   SVC --> FX[Idempotent synthetic fixtures<br/>Explicit demo provenance]
-  AD[Source adapter interface] -. future, only when permitted and configured .-> SVC
-  GOV[Official government APIs/sites] -. phase 2 .-> AD
-  CORP[Corporate disclosures] -. phase 3 .-> AD
-  MKT[Licensed market data] -. phase 3 .-> AD
-  SOC[Supported official social APIs] -. phase 4 .-> AD
-  SVC --> AUD[Audit, processing-job,<br/>evidence and health records]
+
+  ADMIN[Authenticated admin<br/>DB target + current feed access confirmations] -->|Admin-only configure / run / export| API
+  FLAG[Server-only GOVMARKET_PIB_WRITE_TARGET=development<br/>unset by default] -->|required before database writes| API
+  PIB[Official PIB RSS directory link<br/>Fixed press-release feed URL] --> AD[server/pibRss.ts<br/>HTTPS · bounded XML parser · retries]
+  API -->|manual request only| AD
+  AD --> DOC[Source documents + retained revisions<br/>URL · GUID if supplied · hashes · fetched time]
+  DOC --> EVT[Unverified press-release candidates<br/>No inferred company/official edges]
+  DOC --> JOB[Source job + audit metrics<br/>Rows · duplicates · errors · retries]
+  DOC --> DB
+  EVT --> DB
+  JOB --> DB
+  API -->|Admin CSV export| CSV[Browser download + git-ignored<br/>data/export/*.csv]
+  DB --> UI
+
+  CORP[Corporate disclosures] -. future, only when permitted .-> SVC
+  MKT[Licensed market data] -. future, only when licensed .-> SVC
+  SOC[Supported official social APIs] -. future, only when permitted .-> SVC

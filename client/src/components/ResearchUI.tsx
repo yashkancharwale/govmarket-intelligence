@@ -37,8 +37,9 @@ export function EmptyState({ title, message }: { title: string; message: string 
 }
 
 export function EventRow({ event, compact = false }: { event: EventSummary; compact?: boolean }) {
+  const isPibPressRelease = event.eventType === "pib_press_release";
   return <Link href={`/events/${event.id}`} className={`event-row ${compact ? "event-row-compact" : ""}`}>
-    <div className="event-date"><CalendarDays size={13} /><span>{dateLabel(event.eventDate, { day: "2-digit", month: "short" })}</span></div>
+    <div className="event-date"><CalendarDays size={13} /><span title={isPibPressRelease ? "RSS publication timestamp, not a verified underlying event date" : "Event date"}>{isPibPressRelease ? "Pub " : ""}{dateLabel(event.eventDate, { day: "2-digit", month: "short" })}</span></div>
     <div className="event-main"><div className="event-row-title">{event.title}</div><div className="event-row-meta"><span>{event.category || "Uncategorized"}</span>{event.location && <><b>·</b><span>{event.location}</span></>}{event.minister?.name && <><b>·</b><span>{event.minister.name}</span></>}</div></div>
     <div className="event-row-right"><VerificationPill status={event.verificationStatus} synthetic={event.isSynthetic} />{!compact && <span className="event-sources"><ShieldCheck size={12} />{event.isSynthetic ? "Fixture" : `${event.sourceCount ?? 0} sources`}</span>}<ChevronRight size={15} className="row-chevron" /></div>
   </Link>;
@@ -48,12 +49,31 @@ export function CompanyChip({ name, href }: { name: string; href?: string }) {
   return href ? <Link href={href} className="company-chip">{name}<ArrowUpRight size={11} /></Link> : <span className="company-chip">{name}</span>;
 }
 
+function getPibSnapshot(provenance?: string | null): Record<string, unknown> | null {
+  if (!provenance) return null;
+  try {
+    const value = JSON.parse(provenance) as Record<string, unknown>;
+    return value.kind === "pib-rss-item-snapshot" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function SourceEvidence({ title, sourceType, url, provenance, isSynthetic, status }: { title: string; sourceType?: string | null; url?: string | null; provenance?: string | null; isSynthetic?: boolean; status?: string }) {
+  const snapshot = getPibSnapshot(provenance);
   const safeUrl = url && /^https?:\/\//i.test(url) ? url : null;
   const statusText = isSynthetic
     ? safeUrl ? "Synthetic import · URL supplied by user, not verified" : "Synthetic fixture · no external source asserted"
     : `${sourceType || "Source"} · ${statusLabel(status)}`;
-  return <div className="evidence-card"><div className="evidence-icon"><FileText size={15} /></div><div className="evidence-copy"><strong>{title}</strong><span>{statusText}</span>{provenance && <span>{provenance}</span>}</div>{safeUrl ? <a className="evidence-link" href={safeUrl} target="_blank" rel="noopener noreferrer" aria-label="Open source evidence"><ExternalLink size={14} /></a> : <span className="evidence-unavailable">No link</span>}</div>;
+  const summary = typeof snapshot?.summary === "string" ? snapshot.summary : "";
+  const publishedAt = typeof snapshot?.originalPublishedAt === "string" ? snapshot.originalPublishedAt : "";
+  const retrievedAt = typeof snapshot?.retrievedAt === "string" ? snapshot.retrievedAt : "";
+  return <div className="evidence-card"><div className="evidence-icon"><FileText size={15} /></div><div className="evidence-copy"><strong>{title}</strong><span>{statusText}</span>{snapshot ? <>
+    {publishedAt && <span className="evidence-metadata">RSS publication time (as supplied): {publishedAt}</span>}
+    {retrievedAt && <span className="evidence-metadata">Retrieved: {retrievedAt}</span>}
+    {summary && <details className="evidence-detail-text"><summary>Feed summary/content ({summary.length.toLocaleString("en-IN")} characters)</summary><p>{summary}</p></details>}
+    <span className="evidence-metadata">Fetched source material · not independently verified · no relationship inferred</span>
+  </> : provenance && <span>{provenance}</span>}</div>{safeUrl ? <a className="evidence-link" href={safeUrl} target="_blank" rel="noopener noreferrer" aria-label="Open source evidence"><ExternalLink size={14} /></a> : <span className="evidence-unavailable">No link</span>}</div>;
 }
 
 export function SectionLink({ href, children }: { href: string; children: ReactNode }) {

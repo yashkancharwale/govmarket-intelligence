@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { calculateEventStudy, classifyEvent, eventSearchInputSchema, normalizeName, normalizeUrl, parseCsv } from "../shared/intelligence";
 import type { SourceAdapter } from "../shared/intelligence";
+import { parsePibJobAuditMetrics } from "./intelligence";
 import type { TrpcContext } from "./_core/context";
 
 const context = (role: "user" | "admin"): TrpcContext => ({
@@ -69,5 +70,30 @@ describe("intelligence pure contracts", () => {
   it("rejects CSV import for a non-admin without touching the database", async () => {
     const caller = appRouter.createCaller(context("user"));
     await expect(caller.intelligence.system.importCsv({ csv: "title,occurredAt\nfixture,2026-01-01" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("rejects PIB configuration, ingestion, and export for a non-admin before database access", async () => {
+    const caller = appRouter.createCaller(context("user"));
+    await expect(caller.intelligence.system.configurePibRss({ enabled: true, confirmDatabaseTarget: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.intelligence.system.runPibRss({ confirmDatabaseTarget: true, confirmFeedAccess: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.intelligence.system.exportPibRssCsv({ confirmDatabaseTarget: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("maps only stored PIB audit totals back to source-job history", () => {
+    expect(parsePibJobAuditMetrics(JSON.stringify({ sourceKey: "pib:press-releases:en:india", jobId: 9, imported: 3, revisions: 2 })))
+      .toEqual({ jobId: 9, importedCount: 3, revisionCount: 2 });
+    expect(parsePibJobAuditMetrics(JSON.stringify({ sourceKey: "another-source", jobId: 9, imported: 3, revisions: 2 }))).toBeNull();
+    expect(parsePibJobAuditMetrics("not-json")).toBeNull();
+  });
+  it("blocks an admin from all PIB writes unless the development-target flag is set", async () => {
+    const original = process.env.GOVMARKET_PIB_WRITE_TARGET;
+    delete process.env.GOVMARKET_PIB_WRITE_TARGET;
+    try {
+      const caller = appRouter.createCaller(context("admin"));
+      await expect(caller.intelligence.system.configurePibRss({ enabled: true, confirmDatabaseTarget: true })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      await expect(caller.intelligence.system.runPibRss({ confirmDatabaseTarget: true, confirmFeedAccess: true })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      await expect(caller.intelligence.system.exportPibRssCsv({ confirmDatabaseTarget: true })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    } finally {
+      if (original === undefined) delete process.env.GOVMARKET_PIB_WRITE_TARGET;
+      else process.env.GOVMARKET_PIB_WRITE_TARGET = original;
+    }
   });
 });

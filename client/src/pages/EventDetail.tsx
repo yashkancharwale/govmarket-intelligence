@@ -27,6 +27,7 @@ interface EventDetailData {
   event: {
     id: number | string;
     title: string;
+    eventType?: string | null;
     eventDate?: string | Date | null;
     category?: string | null;
     summary?: string | null;
@@ -60,6 +61,10 @@ export default function EventDetail() {
   }
 
   const event = data.event;
+  const isPibPressRelease = event.eventType === "pib_press_release";
+  const pibPublicationTime = isPibPressRelease && event.eventDate
+    ? new Date(event.eventDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC"
+    : "Not available";
   const linkedCompanies = data.companies ?? [];
   const linkedOfficials = data.officials ?? [];
   const edgeEvidence = [
@@ -85,14 +90,14 @@ export default function EventDetail() {
 
   return <div className="page-stack">
     <Link href="/events" className="back-link"><ArrowLeft size={14} />Events explorer</Link>
-    <PageHeading eyebrow={`EVENT RECORD / ${String(event.id).padStart(5, "0")}`} title={event.title} description={event.summary || "No event summary is available for this record."} actions={<VerificationPill status={event.verificationStatus} synthetic={event.isSynthetic} />} />
+    <PageHeading eyebrow={`EVENT RECORD / ${String(event.id).padStart(5, "0")}`} title={event.title} description={isPibPressRelease ? `${event.summary || "No feed summary is available."} · PIB press-release candidate; its timestamp is publication time, not a verified underlying event date.` : event.summary || "No event summary is available for this record."} actions={<VerificationPill status={event.verificationStatus} synthetic={event.isSynthetic} />} />
     {event.isSynthetic && <div className="notice notice-amber"><SyntheticFlag /><span>This is a fictional demonstration event. It does not assert that a real-world event occurred.</span></div>}
     <div className="detail-grid">
       <div className="detail-main">
         <Panel title="Record overview" eyebrow="DOCUMENTED FIELDS">
           <div className="fact-grid">
-            <div><span><CalendarDays size={13} />Event date</span><strong>{dateLabel(event.eventDate)}</strong></div>
-            <div><span><CalendarDays size={13} />Publication date</span><strong>Not available</strong></div>
+            <div><span><CalendarDays size={13} />{isPibPressRelease ? "Feed publication time" : "Event date"}</span><strong>{isPibPressRelease ? pibPublicationTime : dateLabel(event.eventDate)}</strong></div>
+            <div><span><CalendarDays size={13} />Underlying event date</span><strong>{isPibPressRelease ? "Not established by RSS metadata" : "Not available"}</strong></div>
             <div><span><Tag size={13} />Category</span><strong>{event.category || "Unavailable"}</strong></div>
             <div><span><MapPin size={13} />Location</span><strong>{event.location || "Not documented"}</strong></div>
             <div><span><ShieldCheck size={13} />Evidence status</span><strong>{event.isSynthetic ? "Synthetic fixture" : event.verificationStatus || "Unverified"}</strong></div>

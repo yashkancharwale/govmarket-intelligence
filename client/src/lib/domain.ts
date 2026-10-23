@@ -24,6 +24,7 @@ export interface MinisterSummary {
 export interface EventSummary {
   id: number | string;
   title: string;
+  eventType?: string | null;
   eventDate?: string | Date | null;
   publicationDate?: string | Date | null;
   category?: string | null;

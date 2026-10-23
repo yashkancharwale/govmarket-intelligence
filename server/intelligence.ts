@@ -27,10 +27,33 @@ import {
   watchlists,
 } from "../drizzle/schema";
 import { calculateEventStudy, classifyEvent, eventSearchInputSchema, normalizeName, normalizeUrl, parseCsv, sha256 } from "../shared/intelligence";
+import { configurePibSource, exportPibRssCsv, PIB_ADAPTER_KEY, PIB_RSS_FEED_URL, PIB_SOURCE_KEY, runPibRssIngestion, PibSourceConfigurationError } from "./pibRss";
 
 const verifiedStatuses = new Set(["source_verified", "independently_corroborated"]);
 const pendingStatuses = ["unverified", "machine_matched"] as const;
 const emptyDatabaseResult = () => ({ error: "Database is not configured", synthetic: true });
+const pibWritesEnabled = () => process.env.GOVMARKET_PIB_WRITE_TARGET === "development";
+
+function assertPibDevelopmentDatabase() {
+  if (!pibWritesEnabled()) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "PIB writes are disabled. Set GOVMARKET_PIB_WRITE_TARGET=development only after confirming DATABASE_URL points to the intended development/test database; the managed preview/published database may be shared." });
+  }
+}
+
+export function parsePibJobAuditMetrics(details: string | null | undefined) {
+  if (!details) return null;
+  try {
+    const value = JSON.parse(details) as Record<string, unknown>;
+    if (value.sourceKey !== PIB_SOURCE_KEY || !Number.isSafeInteger(value.jobId)) return null;
+    return {
+      jobId: value.jobId as number,
+      importedCount: Number.isSafeInteger(value.imported) ? value.imported as number : 0,
+      revisionCount: Number.isSafeInteger(value.revisions) ? value.revisions as number : 0,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function requireDatabase() {
   const db = await getDb();
@@ -97,6 +120,7 @@ async function eventSummary(db: any, event: any) {
   return {
     id: event.id,
     title: event.title,
+    eventType: event.eventType,
     eventDate: event.occurredAt,
     category: event.category,
     summary: event.summary,
@@ -488,19 +512,78 @@ export const intelligenceRouter = router({
   system: router({
     health: publicProcedure.query(async () => {
       const db = await getDb();
-      if (!db) return { sources: [], jobs: [], awaitingVerification: 0, latestRecordAt: null };
-      const [sourceRows, jobRows, pendingEvents, latestDocument] = await Promise.all([
+      if (!db) return { sources: [], jobs: [], awaitingVerification: 0, latestRecordAt: null, pibWritesEnabled: pibWritesEnabled() };
+      const [sourceRows, jobRows, pendingEvents, latestDocument, runAuditRows] = await Promise.all([
         db.select().from(sources),
         db.select().from(sourceJobs).orderBy(desc(sourceJobs.createdAt)).limit(50),
         db.select().from(events).where(inArray(events.verificationStatus, [...pendingStatuses])),
         db.select().from(documents).orderBy(desc(documents.retrievedAt)).limit(1),
+        db.select({ details: auditLogs.details }).from(auditLogs).where(eq(auditLogs.action, "intelligence.runPibRss")).orderBy(desc(auditLogs.createdAt)).limit(200),
       ]);
+      const pibMetricsByJobId = new Map<number, { importedCount: number; revisionCount: number }>();
+      for (const audit of runAuditRows) {
+        const metrics = parsePibJobAuditMetrics(audit.details);
+        if (metrics && !pibMetricsByJobId.has(metrics.jobId)) {
+          pibMetricsByJobId.set(metrics.jobId, { importedCount: metrics.importedCount, revisionCount: metrics.revisionCount });
+        }
+      }
       return {
         sources: sourceRows.map((source: any) => ({ ...source, configured: Boolean(source.isEnabled && !source.isSynthetic) })),
-        jobs: jobRows,
+        jobs: jobRows.map((job: any) => ({ ...job, ...(pibMetricsByJobId.get(job.id) ?? {}) })),
         awaitingVerification: pendingEvents.length,
         latestRecordAt: latestDocument[0]?.retrievedAt ?? null,
+        pibWritesEnabled: pibWritesEnabled(),
       };
+    }),
+    configurePibRss: adminProcedure.input(z.object({ enabled: z.boolean(), confirmDatabaseTarget: z.literal(true) })).mutation(async ({ input, ctx }) => {
+      assertPibDevelopmentDatabase();
+      const db = await requireDatabase();
+      try {
+        const source = await configurePibSource(db, input.enabled);
+        await db.insert(auditLogs).values({
+          userId: ctx.user.id,
+          action: "intelligence.configurePibRss",
+          entityType: "source",
+          entityId: source?.id ?? null,
+          details: JSON.stringify({ sourceKey: PIB_SOURCE_KEY, feedUrl: PIB_RSS_FEED_URL, enabled: input.enabled }),
+        });
+        return { configured: Boolean(source && !source.isSynthetic), enabled: Boolean(source?.isEnabled), sourceName: source?.name ?? null, feedUrl: PIB_RSS_FEED_URL };
+      } catch (error) {
+        if (error instanceof PibSourceConfigurationError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+        console.error("[PIB] Source configuration failed.");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PIB source configuration could not be saved." });
+      }
+    }),
+    runPibRss: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(500).default(500), confirmDatabaseTarget: z.literal(true), confirmFeedAccess: z.literal(true) })).mutation(async ({ input, ctx }) => {
+      assertPibDevelopmentDatabase();
+      const db = await requireDatabase();
+      const source = (await db.select().from(sources).where(eq(sources.sourceKey, PIB_SOURCE_KEY)).limit(1))[0];
+      if (!source || source.isSynthetic || !source.isEnabled || source.adapterKey !== PIB_ADAPTER_KEY || source.baseUrl !== PIB_RSS_FEED_URL) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure and enable the official PIB RSS source as an administrator before running it." });
+      }
+      return { ...(await runPibRssIngestion(db, source, ctx.user.id, input.limit)), feedUrl: PIB_RSS_FEED_URL };
+    }),
+    exportPibRssCsv: adminProcedure.input(z.object({ confirmDatabaseTarget: z.literal(true) })).mutation(async ({ ctx }) => {
+      assertPibDevelopmentDatabase();
+      const db = await requireDatabase();
+      const source = (await db.select().from(sources).where(eq(sources.sourceKey, PIB_SOURCE_KEY)).limit(1))[0];
+      if (!source || source.isSynthetic || source.adapterKey !== PIB_ADAPTER_KEY || source.baseUrl !== PIB_RSS_FEED_URL) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No verified PIB source configuration is available for export." });
+      }
+      try {
+        const output = await exportPibRssCsv(db, source.id);
+        await db.insert(auditLogs).values({
+          userId: ctx.user.id,
+          action: "intelligence.exportPibRssCsv",
+          entityType: "source",
+          entityId: source.id,
+          details: JSON.stringify({ filename: output.filename, recordCount: output.recordCount }),
+        });
+        return output;
+      } catch (error) {
+        console.error("[PIB] CSV export failed.");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error && error.message.includes("limited to") ? error.message : "PIB CSV export failed; no private data was returned." });
+      }
     }),
     importCsv: adminProcedure.input(z.object({
       csv: z.string().max(1_000_000).optional(),

@@ -46,6 +46,7 @@ export type MinisterSummary = {
 export type EventSummary = {
   id: number;
   title: string;
+  eventType: string;
   eventDate: Date;
   category: string | null;
   summary: string | null;
@@ -236,10 +237,20 @@ export type SourceDocument = {
   publishedAt?: Date | null;
   retrievedAt?: Date;
 };
+export type SourceItemError = { itemIndex: number; message: string };
+export type SourceFetchResult = {
+  documents: SourceDocument[];
+  nextCursor?: string | null;
+  itemErrors?: SourceItemError[];
+  fetchedCount?: number;
+  retryCount?: number;
+  quotaLimited?: boolean;
+  truncated?: boolean;
+};
 export interface SourceAdapter {
   readonly key: string;
   readonly configured: boolean;
-  fetch(input?: { cursor?: string; since?: Date; limit?: number }): Promise<{ documents: SourceDocument[]; nextCursor?: string | null }>;
+  fetch(input?: { cursor?: string; since?: Date; limit?: number }): Promise<SourceFetchResult>;
 }
 
 export type IntelligenceOverview = {
